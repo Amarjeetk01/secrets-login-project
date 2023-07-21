@@ -12,20 +12,11 @@ import passport from 'passport';
 import passportLocalMongoose from 'passport-local-mongoose';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import findOrCreate from 'mongoose-findorcreate';
-// const encrypt = require('mongoose-encryption');
-// const md5 = require('md5');
-// const bcrypt = require('bcrypt');
-// const saltRounds = 10;
-// const session = require('express-session')
-// const passport=require('passport');
-// const passportLocalMongoose = require('passport-local-mongoose');
-// const GoogleStrategy = require('passport-google-oauth20').Strategy;
-// const findOrCreate = require('mongoose-findorcreate')
-
+import flash from 'connect-flash';
 const app = express();
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
-
+app.use(flash());
 
 
 app.use(bodyParser.urlencoded({extended: true}));
@@ -51,16 +42,10 @@ const userSchema = mongoose.Schema({
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
 
-// const secret="ThisIsMySecret"
-
-// userSchema.plugin(encrypt, { secret: secret,encryptedFields: ['password']  });
-// userSchema.plugin(encrypt, { secret: process.env.SECRET,encryptedFields: ['password']  });
 
 const User = mongoose.model("User", userSchema);
 
 passport.use(User.createStrategy());
-// passport.serializeUser(User.serializeUser());
-// passport.deserializeUser(User.deserializeUser());
 
 passport.serializeUser(function(user, cb) {
   process.nextTick(function() {
@@ -90,6 +75,15 @@ function(accessToken, refreshToken, profile, cb) {
 }
 ));
 
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  } else {
+    res.redirect("/register");
+  }
+}
+
+
 app.get("/", function(req, res){
   res.render("home");
 });
@@ -117,10 +111,10 @@ app.get("/register", function(req, res){
   // else{
   //   res.redirect("/login");
   // }
-  app.get("/secrets", function(req, res){
+  app.get("/secrets", ensureAuthenticated, function(req, res) {
     User.find({"secret": {$ne: null}})
       .then(foundUsers => {
-        if(foundUsers){
+        if (foundUsers) {
           res.render("secrets", {userWithSecrets: foundUsers});
         }
       })
@@ -128,6 +122,8 @@ app.get("/register", function(req, res){
         console.log(err);
       });
   });
+ 
+    
   
 app.get("/submit", function(req, res){
   if(req.isAuthenticated()){
@@ -142,6 +138,7 @@ app.get("/submit", function(req, res){
 app.get("/qr-image", function(req, res) {
   res.download("qr_img.png"); 
 });
+
 
 
 
@@ -166,7 +163,7 @@ app.post("/submit", async function(req, res){
   }
 });
 
-app.get("/share", function(req, res) {
+app.get("/share", ensureAuthenticated, function(req, res) {
   // Render a share page with a link to download the QR code image
   res.render("share", { qrImageUrl: "/qr-image" });
 });
@@ -179,76 +176,67 @@ app.get('/logout', function(req, res, next){
   });
 });
 
-
-app.post("/register", function (req, res) {
-  // bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
-  //   const newUser = new User({
-  //     email: req.body.username,
-  //     // password: md5(req.body.password),
-  //     password: hash,
-  //   });
-  
-  //   newUser.save()
-  //     .then(() => {
-  //       res.render("secrets");
-  //     })
-  //     .catch((err) => {
-  //       console.log(err);
-  //     });
-// });
-
-User.register({username:req.body.username}, req.body.password, function(err, user) {
-  if (err) { 
+app.post("/register", async function (req, res) {
+  try {
+    // Check if the user already exists in the database
+    const existingUser = await User.findOne({ username: req.body.username });
+    if (existingUser) {
+      // Flash message indicating that the user is already registered
+      req.flash("error", "User already registered. Please login.");
+      res.redirect("/login");
+    } else {
+      // User is not already registered, proceed with registration
+      User.register({ username: req.body.username }, req.body.password, function (err, user) {
+        if (err) {
+          console.log(err);
+          res.redirect("/register");
+        } else {
+          passport.authenticate("local")(req, res, function () {
+            res.redirect("/secrets");
+          });
+        }
+      });
+    }
+  } catch (err) {
     console.log(err);
     res.redirect("/register");
   }
-  else{
-    passport.authenticate("local")(req,res,function(){
-      res.redirect("/secrets");
-    })
-  }
-})
-  
 });
 
-app.post("/login", async function(req, res){
-  // const username = req.body.username;
-  // // const password = md5(req.body.password);
-  // const password = req.body.password;
+app.post("/login", async function(req, res) {
+  const user = new User({
+    username: req.body.username,
+    password: req.body.password
+  });
 
-  // try {
-  //   const foundUser = await User.findOne({ email: username });
-
-  //   // if (foundUser && foundUser.password === password) {
-  //   //   res.render("secrets");
-  //   // }
-  //   bcrypt.compare(password, foundUser.password, function(err, result) {
-  //     // result == true
-  //     if(result===true){
-  //       res.render("secrets");
-  //     }
-  // });
-  // } catch (err) {
-  //   console.log(err);
-  // }
-
-  const user= new User({
-    username :req.body.username,
-    password :req.body.password
-  })
-  req.login(user,function(err){
-    if (err) { 
+  req.login(user, function(err) {
+    if (err) {
       console.log(err);
       res.redirect("/register");
+    } else {
+      passport.authenticate("local", function(err, user, info) {
+        if (err) {
+          console.log(err);
+          res.redirect("/register");
+        }
+        if (!user) {
+          req.flash("error", "User not registered. Please register first.");
+          res.redirect("/register");
+        } else {
+          req.logIn(user, function(err) {
+            if (err) {
+              console.log(err);
+              res.redirect("/register");
+            }
+            res.redirect("/secrets");
+          });
+        }
+      })(req, res);
     }
-    else{
-      passport.authenticate("local")(req,res,function(){
-        res.redirect("/secrets");
-      })
-    }
-  })
-
+  });
 });
+
+
 
 
 
