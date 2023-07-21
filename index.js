@@ -73,7 +73,7 @@ passport.deserializeUser(function(user, cb) {
 passport.use(new GoogleStrategy({
   clientID: process.env.CLIENT_ID,
   clientSecret: process.env.CLIENT_SECRET,
-  callbackURL: "https://amarjeet-kumar.onrender.com/auth/google/secrets"
+  callbackURL: "http://amarjeet-kumar.onrender.com/auth/google/secrets"
 },
 function(accessToken, refreshToken, profile, cb) {
   User.findOrCreate({ googleId: profile.id }, function (err, user) {
