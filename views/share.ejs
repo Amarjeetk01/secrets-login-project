@@ -1,0 +1,11 @@
+<%- include('partials/header') %>
+<div class="container share-text">
+<h1>Share QR Code</h1>
+<p>Click the link below to download <i class="fa fa-download"></i> the QR code image:</p>
+<a href="<%= qrImageUrl %>" download="qr_img.png" class="btn btn-primary btn-lg">Download QR Code</a>
+<p>Or you can view <i class='far fa-eye'></i> the QR code image directly:</p>
+<img src="<%= qrImageUrl %>" alt="QR Code" ><br>
+<a class="btn btn-dark btn-lg" href="/secrets" role="button">Back</a>
+</div>
+
+<%- include('partials/footer') %>

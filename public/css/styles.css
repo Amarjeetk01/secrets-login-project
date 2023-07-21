@@ -14,3 +14,10 @@ body {
   color: #fff;
   background-color: #000;
 }
+.share-text {
+  text-align: center;
+  font-size: 2rem;
+  color: #fff;
+  background-color: #000;
+  font-family: 'Norican', cursive;
+}

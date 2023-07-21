@@ -1,18 +1,26 @@
 //jshint esversion:6
-require('dotenv').config();
-const express = require("express");
-const bodyParser = require("body-parser");
-const ejs = require("ejs");
-const mongoose = require("mongoose");
+import 'dotenv/config';
+import express from "express";
+import bodyParser from "body-parser";
+import ejs from "ejs";
+import mongoose from "mongoose";
+import fs from "fs";
+import inquirer from 'inquirer';
+import qr from 'qr-image';
+import session from 'express-session';
+import passport from 'passport';
+import passportLocalMongoose from 'passport-local-mongoose';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import findOrCreate from 'mongoose-findorcreate';
 // const encrypt = require('mongoose-encryption');
 // const md5 = require('md5');
 // const bcrypt = require('bcrypt');
 // const saltRounds = 10;
-const session = require('express-session')
-const passport=require('passport');
-const passportLocalMongoose = require('passport-local-mongoose');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const findOrCreate = require('mongoose-findorcreate')
+// const session = require('express-session')
+// const passport=require('passport');
+// const passportLocalMongoose = require('passport-local-mongoose');
+// const GoogleStrategy = require('passport-google-oauth20').Strategy;
+// const findOrCreate = require('mongoose-findorcreate')
 
 const app = express();
 app.use(express.static("public"));
@@ -131,21 +139,37 @@ app.get("/submit", function(req, res){
   
 });
 
+app.get("/qr-image", function(req, res) {
+  res.download("qr_img.png"); 
+});
+
+
+
+
 
 app.post("/submit", async function(req, res){
   const submittedSecret = req.body.secret;
+
+  var qr_png = qr.image(submittedSecret, { type: 'png' });
+  qr_png.pipe(fs.createWriteStream('qr_img.png'));
+  console.log("QR code image generated successfully!");
   try {
     const foundUser = await User.findById(req.user.id);
     if (foundUser) {
       foundUser.secret = submittedSecret;
       await foundUser.save();
-      res.redirect("/secrets");
+      
+      res.redirect("/share");
     }
   } catch (err) {
     console.log(err);
   }
 });
 
+app.get("/share", function(req, res) {
+  // Render a share page with a link to download the QR code image
+  res.render("share", { qrImageUrl: "/qr-image" });
+});
 
 
 app.get('/logout', function(req, res, next){
